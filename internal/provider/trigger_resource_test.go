@@ -460,6 +460,66 @@ resource "honeycombio_trigger" "test" {
 			},
 		})
 	})
+
+	t.Run("trigger with HAVING clause", func(t *testing.T) {
+		resource.Test(t, resource.TestCase{
+			PreCheck:                 testAccPreCheck(t),
+			ProtoV5ProviderFactories: testAccProtoV5MuxServerFactory,
+			Steps: []resource.TestStep{
+				{
+					Config: fmt.Sprintf(`
+data "honeycombio_query_specification" "test" {
+  calculation {
+    op     = "P99"
+    column = "duration_ms"
+  }
+
+  calculation {
+    op = "COUNT"
+  }
+
+  having {
+    calculate_op = "COUNT"
+    op           = ">"
+    value        = 100
+  }
+
+  time_range = 1200
+}
+
+resource "honeycombio_trigger" "test" {
+  name    = "%[2]s"
+  dataset = "%[1]s"
+
+  description = "Trigger with HAVING clause"
+
+  query_json = data.honeycombio_query_specification.test.json
+
+  threshold {
+    op    = ">"
+    value = 50
+  }
+
+  frequency = 600
+}`, dataset, name),
+					Check: resource.ComposeAggregateTestCheckFunc(
+						testAccEnsureTriggerExists(t, "honeycombio_trigger.test"),
+						resource.TestCheckResourceAttr("honeycombio_trigger.test", "name", name),
+						resource.TestCheckResourceAttr("honeycombio_trigger.test", "frequency", "600"),
+						resource.TestCheckResourceAttr("honeycombio_trigger.test", "threshold.0.op", ">"),
+						resource.TestCheckResourceAttr("honeycombio_trigger.test", "threshold.0.value", "50"),
+						resource.TestCheckNoResourceAttr("honeycombio_trigger.test", "query_id"),
+						resource.TestCheckResourceAttrSet("honeycombio_trigger.test", "query_json"),
+					),
+				},
+				{
+					ResourceName:        "honeycombio_trigger.test",
+					ImportStateIdPrefix: fmt.Sprintf("%v/", dataset),
+					ImportState:         true,
+				},
+			},
+		})
+	})
 }
 
 // TestAcc_TriggerResourceUpgradeFromVersion014 is intended to test the migration

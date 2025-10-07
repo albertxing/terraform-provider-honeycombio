@@ -594,7 +594,8 @@ func (r *triggerResource) ValidateConfig(ctx context.Context, req resource.Valid
 	}
 
 	// validate calculations
-	if len(q.Calculations) != 1 {
+	// must have exactly one calculation that is not used in a HAVING clause
+	if len(q.Calculations)-len(q.Havings) != 1 {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("query_json"),
 			"Trigger validation error",
